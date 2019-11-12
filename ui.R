@@ -155,8 +155,15 @@ ui <- navbarPage(
   ),
   ## Plotting page ####
   tabPanel("Plotting",
-           
-             plotOutput(
+           selectizeInput(
+             inputId = "plotting_mode",
+             label = "Select plot mode",
+             choices = c("1 Core (Section) - X Elements" = "1cXe",
+                         "X Cores (Sections) - 1 Element" = "Xc1e",
+                         "Longcore" = "longcore"),
+             multiple = FALSE
+           ),
+            plotOutput(
                "plotting_plotout",
                height = 600,
                click = "plotting_plotout_click",
@@ -168,13 +175,6 @@ ui <- navbarPage(
            fluidRow(
              column(
                3,
-               selectizeInput(
-                 inputId = "plotting_mode",
-                 label = "1. Select mode",
-                 choices = c("1 Core - X Elements" = "1cXe",
-                                "X Cores - 1 Element" = "Xc1e"),
-                 multiple = FALSE
-               ),
                uiOutput("plotUIinputs"),
                br()
              )
@@ -184,5 +184,6 @@ ui <- navbarPage(
   
   ## Export page ####
   tabPanel("Export",
+           actionButton("triggerbrowser", "Trigger browser( )"),
            verbatimTextOutput("cleandftest"))
 )

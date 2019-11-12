@@ -148,15 +148,23 @@ server <- function(input, output, session) {
     # XRFdf_cleaned()
     ## This function uses the data from the reactive Value excludeddata to filter out deselected measurements and elements. In the end, negative cps (physically impossible and troublesome for log ratios) are removed as well.
     XRFdata <- req(XRFdf_norep())
+    print("Echoing excludeddata")
+    print(excludeddata$exclelem)
+    print(excludeddata$excldepth)
+    
+    if (!is_empty(excludeddata$exclelem)) {
     elemdf <-
       map_dfr(excludeddata$exclelem, ~ enframe(., name = NULL), .id = "CoreID") %>%
       mutate(elem_removed = TRUE) %>%
       rename(Element = value)
+    }
     
+    if (!is_empty(excludeddata$excldepth)) {
     depthdf <-
       map_dfr(excludeddata$excldepth, ~ enframe(., name = NULL), .id = "CoreID") %>%
       mutate(depth_removed = TRUE) %>%
       rename(Depth = value)
+    }
     
     if (!(nrow(elemdf) == 0 | nrow(depthdf) == 0)) {
       tmpxrf <- XRFdata %>%
@@ -168,7 +176,7 @@ server <- function(input, output, session) {
       tmpxrf <- XRFdata %>%
         filter(cps > 0)
     }
-    
+
     tmpxrf
   })
   
@@ -179,19 +187,34 @@ server <- function(input, output, session) {
     ## under construction
     CoreID <- req(input$plotting_choose1c)
     XRFdata <- req(XRFdf_cleaned())
-    Proxies <- req(input$plotting_chooseproxies)
+    proxies <- req(input$plotting_chooseproxies)
     additionaltraces$filenames <- req(input$plotting_addtraces$name)
-
+    
+    
     additionaltraces$tracesdata <- map(input$plotting_addtraces$datapath, ~(read_delim(.x, delim = ";") %>% rename(Depth = 1)))
-
     addtraces_df <- reduce(additionaltraces$tracesdata, full_join, by = "Depth")
     
-    tmpxrf <- XRFdata %>%
-      select(one_of(c("CoreID","SectionID","LongcoreName","z","Depth","Element","cps"))) %>%
-      spread(Element, cps) %>%
-      full_join(addtraces_df, by = "Depth")
     
-    tmpxrf
+    if (!is_empty(proxies)) {
+      
+    }
+
+    
+    calcproxy <- function(x){
+      
+      XRFdata %>% 
+        group_by(Depth) %>%
+        mutate(!!paste(x, "ratio", sep = "_") := cps/cps[Element %in% !!x]) %>% 
+        ungroup() %>%
+        select(!!paste(x, "ratio", sep = "_") )
+    }
+    
+    XRF_plotdf <- XRFdata %>% 
+      group_modify(~map_dfc(proxies, calcproxy)) %>% 
+      bind_cols(XRFdata, .) %>%
+      arrange(Depth, Element)
+    
+    XRF_plotdf
   })
   
   # Other reactive functions
@@ -212,7 +235,7 @@ server <- function(input, output, session) {
   elementsdiag_debounced <- debounce(elementsdiag, 1000)
   
   ## empty reactiveValue to hold filenames and data of additional traces
-  additionaltraces <- reactiveValues()
+  # additionaltraces <- reactiveValues()
 
 # Observers ---------------------------------------------------------------
   
@@ -295,30 +318,35 @@ server <- function(input, output, session) {
   # Observers for plotting page
   
   ## not correctly initialized currently
-  observeEvent(XRFdf_cleaned(), {
+  observe({
+    cleaned <- XRFdf_cleaned()
+    print("Echoing the observer for plotting_chosse1c cleaned df")
+    print(cleaned)
     updateSelectizeInput(
       session,
       "plotting_choose1c",
       server = TRUE,
-      choices = unique(XRFdf_cleaned()$CoreID)
+      choices = unique(cleaned$CoreID)
     )
-  }, ignoreInit = TRUE)
+  })
 
-  observeEvent(XRFdf_cleaned(), {
-    if ("LongcoreName" %in% colnames(XRFdf_cleaned())) {
-      enable(id = "plotting_uselongcore")
-    } else {
-      disable(id = "plotting_uselongcore")
-    }
-  }, ignoreInit = TRUE)
-
-  observeEvent(XRFdf_cleaned(), {
+  observe({
+    cleaned <- XRFdf_cleaned()
+    clean_choices <- cleaned %>% filter(CoreID %in% input$plotting_choose1c) %>% select(Element) %>% distinct() %>% .[[1]]
+    print("Echoing cleanchoices")
+    print(clean_choices)
     updatePickerInput(
       session,
       "plotting_chooseproxies",
-      choices = unique(XRFdf_cleaned() %>% filter(CoreID %in% req(input$plotting_choose1c)) %>% select(Element))
+      choices = unique(clean_choices)
     )
-  }, ignoreInit = TRUE)
+  })
+  
+  # Observers for export page
+  
+  observeEvent(input$triggerbrowser, {
+    browser()
+  })
 
 # Output code -------------------------------------------------------------
   
@@ -422,7 +450,6 @@ server <- function(input, output, session) {
     switch(input$plotting_mode,
            "1cXe" = {returnList <- tagList(
              selectizeInput("plotting_choose1c", "2. Choose Core", choices = NULL),
-             checkboxInput("plotting_uselongcore", "Plot longcore?"),
              pickerInput(
                inputId = "plotting_chooseproxies",
                label = "3. Calculate ratios? Choose proxies",
@@ -454,6 +481,24 @@ server <- function(input, output, session) {
                multiple = TRUE
              ),
              selectizeInput("plotting_choose1e", "3. Choose Element", choices = NULL)
+           )},
+           
+           "longcore" = {returnList <- tagList(
+             pickerInput(
+               inputId = "plotting_chooseproxies_longcore",
+               label = "2. Calculate ratios? Choose proxies",
+               choices = NULL,
+               options = list(`actions-box` = TRUE),
+               multiple = TRUE
+             ),
+             pickerInput(
+               inputId = "plotting_choosetraces_longcore",
+               label = "3. Choose traces to plot",
+               choices = NULL,
+               options = list(`actions-box` = TRUE),
+               multiple = TRUE
+             ),
+             actionButton("plotting_redraw_longcore", "Compute & (Re)draw!", class = "btn-primary")
            )}
            )
     returnList
@@ -461,6 +506,7 @@ server <- function(input, output, session) {
   
   # Outputs on statistics page
   
-  output$cleandftest <- renderPrint(glimpse(XRFdf_cleaned()))
+  
+  output$cleandftest <- renderPrint(glimpse(XRFdf_plotting_1cXe()))
   
 }
