@@ -21,7 +21,7 @@ ui <- navbarPage(
       sidebarPanel(
         h4("Data import"),
         fileInput(
-          "xrfdata",
+          "import_xrffiles",
           "Upload bAXIL batch files (*.csv)",
           accept = c("text/csv",
                      "text/comma-separated-values,text/plain",
@@ -29,16 +29,16 @@ ui <- navbarPage(
           multiple = TRUE
         ),
         hr(),
-        checkboxInput("catmode", "Concatenate core sections"),
-        checkboxInput("descorder", "Sort sections in descending order", value = TRUE),
-        selectizeInput("catpreview_element",
+        checkboxInput("import_catmode", "Concatenate core sections"),
+        checkboxInput("import_descorder", "Sort sections in descending order", value = TRUE),
+        selectizeInput("import_catpreview_element",
                        "Element for long core preview",
                        choices = NULL),
         width = 3
       ),
       
       mainPanel(
-        conditionalPanel("input.catmode == 1", plotOutput("catplot")),
+        conditionalPanel("input.import_catmode == 1", plotOutput("catplot")),
         DTOutput("sectiontable")
       )
     )
@@ -47,13 +47,13 @@ ui <- navbarPage(
   ## Diagnostics page ####
   tabPanel(
     "Diagnostics",
-    selectizeInput('core_id', 'Choose Core ID', NULL),
+    selectizeInput('diagnostics_core_id', 'Choose Core ID', NULL),
     withSpinner(
       plotOutput(
-        "diagnosticsplot",
+        "diagnostics_diagnosticsplot",
         height = 600,
-        click = "diagnosticsplot_click",
-        brush = brushOpts(id = "diagnosticsplot_brush")
+        click = "diagnostics_diagnosticsplot_click",
+        brush = brushOpts(id = "diagnostics_diagnosticsplot_brush")
       )
     ),
     
@@ -65,7 +65,7 @@ ui <- navbarPage(
         h4("Plot options"),
         
         selectizeInput(
-          "diagmode",
+          "diagnostics_diagmode",
           "Diagnostic mode",
           choices = list(
             "Element spectra (cps)" = "cpsdiag",
@@ -76,7 +76,7 @@ ui <- navbarPage(
         div(
           style = "display: inline-block;vertical-align:top; width: 150px;",
           numericInput(
-            inputId = "diags_ymin",
+            inputId = "diagnostics_ymin",
             label = "Y min",
             value = NA
           )
@@ -84,31 +84,31 @@ ui <- navbarPage(
         div(
           style = "display: inline-block;vertical-align:top; width: 150px;",
           numericInput(
-            inputId = "diags_ymax",
+            inputId = "diagnostics_ymax",
             label = "Y max",
             value = NA
           )
         ),
         
         sliderInput(
-          "xlimdiag",
+          "diagnostics_xlims",
           label = "X limits (Core length)",
           min = 0,
           max = 100,
           value = c(40, 60)
         ),
         numericInput(
-          "medrelstdev",
+          "diagnostics_medrelstdev",
           HTML("Mark |&sigma;<sub>rel</sub>| median spectrum threshold"),
           value = 99
         ),
         numericInput(
-          "maxrelstdev",
+          "diagnostics_maxrelstdev",
           HTML("&sigma;<sub>rel</sub>: Draw horizontal line"),
           value = 20
         ),
         numericInput(
-          "chi2cutoff",
+          "diagnostics_chi2cutoff",
           HTML("&chi;<sup>2</sup>: Draw horizontal line"),
           value = 5
         )
@@ -117,10 +117,10 @@ ui <- navbarPage(
       column(
         3,
         h4(HTML(paste(
-          "Exclude data for", textOutput("coreid_text", inline = TRUE)
+          "Exclude data for", textOutput("diagnostics_coreid_text", inline = TRUE)
         ))),
         pickerInput(
-          inputId = "elements_diag",
+          inputId = "diagnostics_elements_excl",
           label = "Include/Exclude Elements",
           choices = NULL,
           options = list(`actions-box` = TRUE),
@@ -140,17 +140,17 @@ ui <- navbarPage(
         ),
         br(),
         br(),
-        actionButton("exclude_rmpoints", "Remove points", class = "btn-warning"),
+        actionButton("diagnostics_exclude_rmpoints", "Remove points", class = "btn-warning"),
         br(),
         br(),
-        actionButton("exclude_reset", "Reset current core", class = "btn-danger"),
+        actionButton("diagnostics_exclude_reset", "Reset current core", class = "btn-danger"),
         br()
       ),
       column(6,
              h4(HTML(
                "Overview of changes"
              )),
-             DTOutput("excltable"))
+             DTOutput("diagnostics_excltable"))
     )
   ),
   ## Plotting page ####
@@ -158,9 +158,7 @@ ui <- navbarPage(
            selectizeInput(
              inputId = "plotting_mode",
              label = "Select plot mode",
-             choices = c("1 Core (Section) - X Elements" = "1cXe",
-                         "X Cores (Sections) - 1 Element" = "Xc1e",
-                         "Longcore" = "longcore"),
+             choices = c("Upload data first"),
              multiple = FALSE
            ),
             plotOutput(
@@ -175,8 +173,41 @@ ui <- navbarPage(
            fluidRow(
              column(
                3,
-               uiOutput("plotUIinputs"),
-               br()
+               selectizeInput("plotting_choose_1cXe", "Choose Core", choices = NULL), # only shown for 1cXe mode
+               pickerInput("plotting_choose_Xc1e", "Choose multiple cores", choices = NULL, multiple = TRUE), # only shown for Xc1e mode
+               textOutput("plotting_longcorename"), # only shown for longcore mode
+               pickerInput(
+                 inputId = "plotting_chooseproxies",
+                 label = "Calculate ratios? Choose proxies",
+                 choices = NULL,
+                 options = list(`actions-box` = TRUE),
+                 multiple = TRUE
+               ), # always shown
+               fileInput("plotting_addtraces", "Upload additional traces (*.csv)", multiple = TRUE, accept = c(
+                 "text/csv",
+                 "text/comma-separated-values,text/plain",
+                 ".csv")
+               ), # only shown for 1cXe mode
+               actionButton("plotting_removetraces", "Remove additional traces", class = "btn-danger"), # only shown for 1cXe mode
+               p(),
+               actionButton("plotting_compute", "Compute traces", class = "btn-primary"),
+               p(),
+               pickerInput(
+                 inputId = "plotting_choosetraces",
+                 label = "Choose traces to plot",
+                 choices = NULL,
+                 options = list(`actions-box` = TRUE, `live-search` = TRUE),
+                 multiple = TRUE
+               ), # shown for 1cXe mode and longcore mode
+               pickerInput(
+                 inputId = "plotting_choosetrace_Xc1e",
+                 label = "Choose trace to plot",
+                 choices = NULL,
+                 options = list(`actions-box` = TRUE, `live-search` = TRUE),
+                 multiple = FALSE
+               ), # shown for Xc1e mode
+               actionButton("plotting_redraw", "(Re)draw!", class = "btn-primary"), # always shown
+               p()
              )
            )),
   ## Statistics page ####
@@ -184,6 +215,5 @@ ui <- navbarPage(
   
   ## Export page ####
   tabPanel("Export",
-           actionButton("triggerbrowser", "Trigger browser( )"),
-           verbatimTextOutput("cleandftest"))
+           actionButton("triggerbrowser", "Trigger browser( )"))
 )

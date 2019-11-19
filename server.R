@@ -8,7 +8,6 @@ library(viridis)
 library(purrr)
 library(tibble)
 library(DT)
-library(plotly)
 
 source("helper.R")
 
@@ -18,13 +17,13 @@ server <- function(input, output, session) {
   
   # XRF data related functions in order of dependency
   
-  XRFdffun <- reactive({
-    # XRFdffun()
+  XRFfun_tidydata <- reactive({
+    # XRFfun_tidydata()
     
     ## uses the file input(s) and runs makeTidyData from helper.R for every file. The function then checks for duplicate elements and removes the Element/Voltage combo with lower overall counts
     
     ## About makeTidyData(): The function removes Rh traces, as these are contained twofold (Rh-Coh, Rh-Inc) and these would lead to ambiguity if a we select by Element. The function also assumes that the first Depth of the core is starting with an offset (usually around 45-50 mm for the green stuff in short cores). However, in long core sections, we don't have an offset (but there is no easy way to tell if we do). Thus, we set Depth(i) = Depth(i) - min(Depth) + 1 (effectively zeroeing any first measurement and then adding 1). Because of this, the depths might be shifted by 1 mm. This is in most cases not relevant as it is consistent for every core processed here.
-    files <- req(input$xrfdata)
+    files <- req(input$import_xrffiles)
     withProgress(message = 'Processing XRF files',
                  detail = 'This may take a while...',
                  value = 0,
@@ -68,12 +67,12 @@ server <- function(input, output, session) {
     xrftbl
   })
   
-  sectionsfun <- reactive({
-    # sectionsfun()
-    ## This reactive function adds, if catmode == TRUE, a new column with the overall depth z. The function expects a letter at the end of the CoreID to denote the section number. The order can be chosen to be ascending (A section at surface, B deeper, and so on) or descending (A deepest section, B next one, so on).
+  XRFfun_makelongcore <- reactive({
+    # XRFfun_makelongcore()
+    ## This reactive function adds, if import_catmode == TRUE, a new column with the overall depth z. The function expects a letter at the end of the CoreID to denote the section number. The order can be chosen to be ascending (A section at surface, B deeper, and so on) or descending (A deepest section, B next one, so on).
     ## At this point there is no support for other Longcore names/CoreID schemes.
-    if (input$catmode) {
-      sectdf <- XRFdffun() %>%
+    if (input$import_catmode) {
+      sectdf <- XRFfun_tidydata() %>%
         group_by(CoreID) %>%
         summarise(Length = max(Depth)) %>%
         mutate(
@@ -92,7 +91,7 @@ server <- function(input, output, session) {
         )
       }
       
-      if (input$descorder) {
+      if (input$import_descorder) {
         sectdf <- sectdf %>%
           arrange(desc(CoreID)) %>%
           mutate(z = cumsum(Length), z = c(0, z[-length(z)]))
@@ -106,51 +105,47 @@ server <- function(input, output, session) {
     }
   })
   
-  processedXRFdf <- reactive({
-    # processedXRFdf()
+  XRFfun_joinlongcore <- reactive({
+    # XRFfun_joinlongcore()
     ## This function joins the depth/length information generated before 
-    if (input$catmode) {
-      xrfdata <- sectionsfun() %>%
-        left_join(XRFdffun(), by = "CoreID") %>%
+    if (input$import_catmode) {
+      xrfdata <- XRFfun_makelongcore() %>%
+        left_join(XRFfun_tidydata(), by = "CoreID") %>%
         mutate(z = z + Depth)
       xrfdata
     } else {
-      XRFdffun()
+      XRFfun_tidydata()
     }
   })
   
-  XRFdf_norep <- reactive({
-    # XRFdf_norep()
-    ## Function that calculates relative standard deviation (error in percent) and also initializes the excludeddata reactivevalue and removes replicates. NB: This function should be integrated into processedXRFdf() if we don't care about replicates, since we don't need processedXRFdf() anywhere else.
-    processedXRFdf <- processedXRFdf() %>%
+  XRFfun_rmrepeats <- reactive({
+    # XRFfun_rmrepeats()
+    ## Function that calculates relative standard deviation (error in percent) and also initializes the excludeddata reactivevalue and removes replicates. NB: This function should be integrated into XRFfun_joinlongcore() if we don't care about replicates, since we don't need XRFfun_joinlongcore() anywhere else.
+    XRFfun_joinlongcore <- XRFfun_joinlongcore() %>%
       filter(Rep %in% "Rep0") %>%
       mutate(relstdev = cpsStd / cps * 100) %>%
       ungroup()
-    uniquecoreid <- unique(req(processedXRFdf$CoreID))
+    uniquecoreid <- unique(req(XRFfun_joinlongcore()$CoreID))
     excludeddata$exclelem <-
       setNames(vector("list", length(uniquecoreid)), uniquecoreid)
     excludeddata$excldepth <-
       setNames(vector("list", length(uniquecoreid)), uniquecoreid)
-    print("Echoing XRFdf_norep()...")
-    print(processedXRFdf)
+    XRFfun_joinlongcore
   })
   
-  XRFdf_coreid <- reactive({
-    # XRFdf_coreid()
+  XRFfun_diags_coreid <- reactive({
+    # XRFfun_diags_coreid()
     ## This function filters the dataset per CoreID for the diagnostics page. That way we don't need to filter in plot commands.
-    curcore <- req(input$core_id)
-    tmpxrf <- XRFdf_norep() %>%
+    curcore <- req(input$diagnostics_core_id)
+    tmpxrf <- XRFfun_rmrepeats() %>%
       filter(CoreID %in% curcore)
     tmpxrf
   })
   
-  XRFdf_cleaned <- reactive({
-    # XRFdf_cleaned()
+  XRFfun_diags_cleaned <- reactive({
+    # XRFfun_diags_cleaned()
     ## This function uses the data from the reactive Value excludeddata to filter out deselected measurements and elements. In the end, negative cps (physically impossible and troublesome for log ratios) are removed as well.
-    XRFdata <- req(XRFdf_norep())
-    print("Echoing excludeddata")
-    print(excludeddata$exclelem)
-    print(excludeddata$excldepth)
+    XRFdata <- req(XRFfun_rmrepeats())
     
     if (!is_empty(excludeddata$exclelem)) {
     elemdf <-
@@ -171,68 +166,174 @@ server <- function(input, output, session) {
         left_join(depthdf, by = c("CoreID", "Depth")) %>%
         left_join(elemdf, by = c("CoreID", "Element")) %>%
         replace_na(list(depth_removed = FALSE, elem_removed = FALSE)) %>%
-        filter(!(depth_removed | elem_removed), cps > 0)
+        filter(!(depth_removed | elem_removed))
     } else {
-      tmpxrf <- XRFdata %>%
-        filter(cps > 0)
+      tmpxrf <- XRFdata
     }
 
     tmpxrf
   })
   
-  XRFdf_plotting_1cXe <- eventReactive(input$plotting_redraw,{
-    # XRFdf_plotting_1cXe()
-    ## This function takes the cleaned XRF data and prepares it for plotting, adding additonal traces possibly and calculating proxies.
+  XRFfun_plotting_compute <- eventReactive(input$plotting_compute, {
+    cleaned <- req(XRFfun_diags_cleaned())
+    pmode <- req(input$plotting_mode)
+    proxies <- plotting_proxies$proxylist
     
-    ## under construction
-    CoreID <- req(input$plotting_choose1c)
-    XRFdata <- req(XRFdf_cleaned())
-    proxies <- req(input$plotting_chooseproxies)
-    additionaltraces$filenames <- req(input$plotting_addtraces$name)
-    
-    
-    additionaltraces$tracesdata <- map(input$plotting_addtraces$datapath, ~(read_delim(.x, delim = ";") %>% rename(Depth = 1)))
-    addtraces_df <- reduce(additionaltraces$tracesdata, full_join, by = "Depth")
-    
-    
-    if (!is_empty(proxies)) {
-      
-    }
-
-    
-    calcproxy <- function(x){
-      
+    calcproxy <- function(x) {
       XRFdata %>% 
         group_by(Depth) %>%
         mutate(!!paste(x, "ratio", sep = "_") := cps/cps[Element %in% !!x]) %>% 
         ungroup() %>%
-        select(!!paste(x, "ratio", sep = "_") )
+        select(!!paste(x, "ratio", sep = "_"))
     }
     
-    XRF_plotdf <- XRFdata %>% 
-      group_modify(~map_dfc(proxies, calcproxy)) %>% 
-      bind_cols(XRFdata, .) %>%
-      arrange(Depth, Element)
+    calcproxy_Xc1e <- function(x) {
+      XRFdata_Xc1e %>% 
+        group_by(CoreID, Depth) %>%
+        mutate(!!paste(x, "ratio", sep = "_") := cps/cps[Element %in% !!x]) %>% 
+        ungroup() %>%
+        select(!!paste(x, "ratio", sep = "_"))
+    }
     
-    XRF_plotdf
+    calcproxy_longcore <- function(x) {
+      XRFdata_longcore %>% 
+        group_by(z) %>%
+        mutate(!!paste(x, "ratio", sep = "_") := cps/cps[Element %in% !!x]) %>% 
+        ungroup() %>%
+        select(!!paste(x, "ratio", sep = "_"))
+    }
+    
+    switch(pmode,
+           "1cXe" = {
+             core_1c <- req(input$plotting_choose_1cXe)
+             XRFdata <- cleaned %>%
+               filter(CoreID %in% core_1c) %>%
+               select(Depth, Element, cps)
+             
+             if (!is_empty(input$plotting_addtraces)) {
+               additionaltraces$filenames <- input$plotting_addtraces$name
+               
+               validate(
+                 need({
+                   additionaltraces$tracesdata <- try(map(input$plotting_addtraces$datapath, ~(read_delim(.x, delim = ";") %>% rename(Depth = 1))))
+                   traces_plotting <- try(reduce(additionaltraces$tracesdata, full_join, by = "Depth") %>%
+                                            mutate(Depth = 10*Depth))
+                 }, "Error occured during parsing and joining additional traces. Check format of input files.")
+               )
+             }
+             
+             if (is_empty(proxies) & is_empty(additionaltraces$filenames)) {
+               xrf_plotting <- XRFdata %>% 
+                 transmute(Depth = Depth, Varname = paste(.$Element, "cps"), Value = cps)
+             }
+             
+             if (is_empty(proxies) & !is_empty(additionaltraces$filename)) {
+               xrf_plotting <- XRFdata %>% 
+                 transmute(Depth = Depth, Varname = paste(.$Element, "cps"), Value = cps) %>% 
+                 spread(Varname, Value, -Depth) %>% 
+                 full_join(traces_plotting, by = "Depth") %>%
+                 gather(Varname, Value, -1) %>%
+                 drop_na()
+             }
+             
+             if (!is_empty(proxies) & is_empty(additionaltraces$filename)) {
+               xrf_plotting <- XRFdata %>% 
+                 group_modify(~map_dfc(proxies, calcproxy)) %>% 
+                 bind_cols(XRFdata, .) %>%
+                 gather(Measure, Value, -c("Depth","Element")) %>%
+                 mutate(Varname = if_else(str_detect(.$Measure, "ratio"), paste0(.$Element, "/", str_extract(.$Measure, "[:alpha:]+")), paste(.$Element, .$Measure))) %>%
+                 select(-c("Element","Measure"))
+             }
+             
+             if (!is_empty(proxies) & !is_empty(additionaltraces$filenames)) {
+               xrf_plotting <- XRFdata %>% 
+                 group_modify(~map_dfc(proxies, calcproxy)) %>% 
+                 bind_cols(XRFdata, .) %>%
+                 gather(Measure, Value, -c("Depth","Element")) %>%
+                 mutate(Varname = if_else(str_detect(.$Measure, "ratio"), paste0(.$Element, "/", str_extract(.$Measure, "[:alpha:]+")), paste(.$Element, .$Measure))) %>%
+                 select(-c("Element","Measure")) %>%
+                 spread(Varname, Value) %>%
+                 full_join(traces_plotting, by = "Depth") %>%
+                 gather(Varname, Value, -1) %>%
+                 drop_na()
+             }
+           },
+           
+           "Xc1e" = {
+             cores_Xc <- req(input$plotting_choose_Xc1e)
+             XRFdata_Xc1e <- cleaned %>%
+               select(CoreID, Depth, Element, cps) %>% 
+               filter(CoreID %in% cores_Xc)
+             
+             xrf_plotting <- XRFdata_Xc1e %>% 
+               group_modify(~map_dfc(proxies, calcproxy_Xc1e)) %>% 
+               bind_cols(XRFdata_Xc1e, .) %>%
+               gather(Measure, Value, -c("CoreID", "Depth", "Element")) %>%
+               mutate(Varname = if_else(str_detect(.$Measure, "ratio"), paste0(.$Element, "/", str_extract(.$Measure, "[:alpha:]+")), paste(.$Element, .$Measure))) %>%
+               select(-c("Element","Measure"))
+           },
+           
+           "longcore" = {
+             XRFdata_longcore <- cleaned %>%
+               select(z, SectionID, Element, cps)
+             
+             xrf_plotting <- XRFdata_longcore %>% 
+               group_modify(~map_dfc(proxies, calcproxy_longcore)) %>% 
+               bind_cols(XRFdata_longcore, .) %>%
+               gather(Measure, Value, -c("z", "SectionID", "Element")) %>%
+               mutate(Varname = if_else(str_detect(.$Measure, "ratio"), paste0(.$Element, "/", str_extract(.$Measure, "[:alpha:]+")), paste(.$Element, .$Measure))) %>%
+               select(-c("Element","Measure"))
+           })
+    
+    xrf_plotting
+  })
+  
+  XRFfun_plotting_redraw <- eventReactive(input$plotting_redraw, {
+    pmode <- req(input$plotting_mode)
+    plotdata <- XRFfun_plotting_compute()
+    
+    switch(pmode,
+           "1cXe" = {
+             plotdata_1cXe <- plotdata %>%
+               filter(Varname %in% req(input$plotting_choosetraces))
+             p <- ggplot(data = plotdata_1cXe, aes(x = Depth, y = Value)) + facet_grid(.~Varname, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + theme_light() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_line()
+           },
+           
+           "Xc1e" = {
+             plotdata_Xc1e <- plotdata %>%
+               filter(Varname %in% req(input$plotting_choosetrace_Xc1e))
+             p <- ggplot(data = plotdata_Xc1e, aes(x = Depth, y = Value)) + facet_grid(Varname~CoreID, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + theme_light() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_line()
+           },
+           
+           "longcore" = {
+             plotdata_longcore <- plotdata %>%
+               filter(Varname %in% req(input$plotting_choosetraces))
+             p <- ggplot(data = plotdata_longcore, aes(x = z, y = Value, colour = SectionID)) + facet_grid(.~Varname, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + theme_light() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_line()
+           })
+    
+    p
   })
   
   # Other reactive functions
   
-  currentxlims <- reactive({
-    # currentxlims()
+  diagnostics_currentxlims <- reactive({
+    # diagnostics_currentxlims()
     ## We can't read from reactive values inside reactiveValues(), so we use reactive() to read out the current chosen CoreID and the maximum depth to create a vector for the x limits.
-    xlims = c(min(XRFdf_coreid()$Depth), max(XRFdf_coreid()$Depth))
+    xlims = c(min(XRFfun_diags_coreid()$Depth), max(XRFfun_diags_coreid()$Depth))
   })
   
   ## here we create an empty reactiveValue to hold our deselected data of all CoreIDs
   excludeddata <- reactiveValues()
   
-  elementsdiag <- reactive({
-    input$elements_diag
+  additionaltraces <- reactiveValues()
+  
+  diagnostics_elements_excl <- reactive({
+    input$diagnostics_elements_excl
   })
   
-  elementsdiag_debounced <- debounce(elementsdiag, 1000)
+  diagnostics_elements_excl_debounced <- debounce(diagnostics_elements_excl, 1000)
+  
+  plotting_proxies <- reactiveValues()
   
   ## empty reactiveValue to hold filenames and data of additional traces
   # additionaltraces <- reactiveValues()
@@ -241,32 +342,32 @@ server <- function(input, output, session) {
   
   # Observers for import page
   
-  observe({
-    ## Here we initialise selectize inputon the import page for the preview element when catmode == TRUE.
+  observeEvent(input$import_catmode, {
+    ## Here we initialise selectize input on the import page for the preview element when import_catmode == TRUE.
     updateSelectizeInput(
       session,
-      'catpreview_element',
-      choices = unique(XRFdf_norep()$Element),
+      'import_catpreview_element',
+      choices = unique(XRFfun_rmrepeats()$Element),
       server = TRUE
     )
   })
   
-  observeEvent(input$catmode, {
-    ## When catmode == TRUE, we show the preview plot and overview table on the import page, otherwise we hide it.
-    toggleState("descorder")
-    toggleState("catpreview_element")
+  observeEvent(input$import_catmode, {
+    ## When import_catmode == TRUE, we show the preview plot and overview table on the import page, otherwise we hide it.
+    toggleState("import_descorder")
+    toggleState("import_catpreview_element")
   })
   
   # Observers for diagnostics page
   
-  observe({
+  observeEvent(input$diagnostics_core_id, {
     ## Here we initialise the X limits range slide on the diagnostics page
     updateSliderInput(
       session,
-      "xlimdiag",
-      value = currentxlims(),
-      min = currentxlims()[1],
-      max = currentxlims()[2]
+      "diagnostics_xlims",
+      value = diagnostics_currentxlims(),
+      min = diagnostics_currentxlims()[1],
+      max = diagnostics_currentxlims()[2]
     )
   })
   
@@ -274,8 +375,8 @@ server <- function(input, output, session) {
     ## Here we initialise the CoreID selectize input on the diagnostics page
     updateSelectizeInput(
       session,
-      'core_id',
-      choices = unique(XRFdf_norep()$CoreID),
+      'diagnostics_core_id',
+      choices = unique(XRFfun_rmrepeats()$CoreID),
       server = TRUE
     )
   })
@@ -284,61 +385,158 @@ server <- function(input, output, session) {
     ## Here we initialise and update the Element picker on the diagnostics page. The control gets reset when the CoreID is changed (invalidated dependency).
     updatePickerInput(
       session,
-      'elements_diag',
-      selected = unique(XRFdf_coreid()$Element),
-      choices = unique(XRFdf_coreid()$Element)
+      'diagnostics_elements_excl',
+      selected = unique(XRFfun_diags_coreid()$Element),
+      choices = unique(XRFfun_diags_coreid()$Element)
     )
   })
   
-  observe({
+  observeEvent(input$diagnostics_elements_excl, {
     ## Here we check which Elements are deselected and write them into the excludeddata$exclelem list per CoreID. This means that changing to a CoreID that already has an exclelem list that is not NULL will overwrite the content! NB: Avoiding to overwrite existing data with NULL from another CoreID is not smart because the input gets initialized with all Elements.
     deselected <-
-      setdiff(unique(XRFdf_coreid()$Element), input$elements_diag)
-    print(deselected)
-    excludeddata$exclelem[[input$core_id]] <- deselected
+      setdiff(unique(XRFfun_diags_coreid()$Element), input$diagnostics_elements_excl)
+    excludeddata$exclelem[[input$diagnostics_core_id]] <- deselected
   })
   
-  observeEvent(input$exclude_rmpoints, {
+  observeEvent(input$diagnostics_exclude_rmpoints, {
     ## Only executed when actionbutton "remove points" is clicked. We choose all possible fields of interest in brushedDepths to be able to brush in every of the three plot modes. Then we append the data to the list excldepth, making sure not to write duplicates.
-    brushedDepths <- XRFdf_coreid() %>%
+    brushedDepths <- XRFfun_diags_coreid() %>%
       select(CoreID, Depth, Element, relstdev, Chi2, cps)
     selpoints <-
-      brushedPoints(brushedDepths, input$diagnosticsplot_brush)
+      brushedPoints(brushedDepths, input$diagnostics_diagnosticsplot_brush)
     
-    excludeddata$excldepth[[input$core_id]] <-
+    excludeddata$excldepth[[input$diagnostics_core_id]] <-
       c(selpoints$Depth,
-        setdiff(excludeddata$excldepth[[input$core_id]], selpoints$Depth))
+        setdiff(excludeddata$excldepth[[input$diagnostics_core_id]], selpoints$Depth))
   })
   
-  observeEvent(input$exclude_reset, {
+  observeEvent(input$diagnostics_exclude_reset, {
     ## Only executed when the "reset" button on the diagnostics page is pressed: Removes all excluded depths from the excldepth list.
-    excludeddata$excldepth[[input$core_id]] <- NULL
+    excludeddata$excldepth[[input$diagnostics_core_id]] <- NULL
   })
   
   # Observers for plotting page
   
-  ## not correctly initialized currently
-  observe({
-    cleaned <- XRFdf_cleaned()
-    print("Echoing the observer for plotting_chosse1c cleaned df")
-    print(cleaned)
-    updateSelectizeInput(
-      session,
-      "plotting_choose1c",
-      server = TRUE,
-      choices = unique(cleaned$CoreID)
-    )
+  observeEvent(XRFfun_diags_cleaned(), {
+    cleaned <- XRFfun_diags_cleaned()
+    
+    if (any(str_detect(colnames(cleaned), "LongcoreName"))) {
+      updateSelectizeInput(
+        session,
+        "plotting_mode",
+        server = TRUE,
+        choices = c("1 Core (Section) - X Elements" = "1cXe",
+                    "X Cores (Sections) - 1 Element" = "Xc1e",
+                    "Longcore" = "longcore")
+      )
+    } else {
+      updateSelectizeInput(
+        session,
+        "plotting_mode",
+        server = TRUE,
+        choices = c("1 Core (Section) - X Elements" = "1cXe",
+                    "X Cores (Sections) - 1 Element" = "Xc1e")
+      )
+    }
+    
+      updateSelectizeInput(
+        session,
+        "plotting_choose_1cXe",
+        server = TRUE,
+        choices = unique(cleaned$CoreID)
+      )
+      
+      updatePickerInput(
+        session,
+        "plotting_choose_Xc1e",
+        choices = unique(cleaned$CoreID)
+      )
   })
-
-  observe({
-    cleaned <- XRFdf_cleaned()
-    clean_choices <- cleaned %>% filter(CoreID %in% input$plotting_choose1c) %>% select(Element) %>% distinct() %>% .[[1]]
-    print("Echoing cleanchoices")
-    print(clean_choices)
+  
+  observeEvent(input$plotting_mode, {
+    ## If the user changes the plotting mode, we show/hide the already existing input controls. This way we can initialise the input controls and be sure that they already exist (e.g. not are created on demand with renderUI)
+    
+    pmode <- req(input$plotting_mode)
+    switch(pmode,
+           "1cXe" = {
+             shinyjs::show(id = "plotting_choose_1cXe")
+             shinyjs::show(id = "plotting_addtraces")
+             shinyjs::show(id = "plotting_removetraces")
+             shinyjs::show(id = "plotting_choosetraces")
+             
+             shinyjs::hide(id = "plotting_choose_Xc1e")
+             shinyjs::hide(id = "plotting_longcorename")
+             shinyjs::hide(id = "plotting_choosetrace_Xc1e")
+           },
+           
+           "Xc1e" = {
+             shinyjs::show(id = "plotting_choose_Xc1e")
+             shinyjs::show(id = "plotting_choosetrace_Xc1e")
+             
+             shinyjs::hide(id = "plotting_choose_1cXe")
+             shinyjs::hide(id = "plotting_addtraces")
+             shinyjs::hide(id = "plotting_removetraces")
+             shinyjs::hide(id = "plotting_longcorename")
+             shinyjs::hide(id = "plotting_choosetraces")
+           },
+           
+           "longcore" = {
+             shinyjs::show(id = "plotting_longcorename")
+             shinyjs::show(id = "plotting_choosetraces")
+             
+             shinyjs::hide(id = "plotting_choose_1cXe")
+             shinyjs::hide(id = "plotting_choose_Xc1e")
+             shinyjs::hide(id = "plotting_addtraces")
+             shinyjs::hide(id = "plotting_removetraces")
+             shinyjs::hide(id = "plotting_choosetrace_Xc1e")
+           })
+  })
+  
+  observeEvent(input$plotting_choose_1cXe, {
+    cleaned <- XRFfun_diags_cleaned()
+    clean_choices <- cleaned %>% filter(CoreID %in% req(input$plotting_choose_1cXe)) %>% select(Element) %>% distinct() %>% .[[1]]
+    
     updatePickerInput(
       session,
       "plotting_chooseproxies",
       choices = unique(clean_choices)
+    )
+  })
+  
+  observeEvent(input$plotting_choose_Xc1e, {
+    cleaned <- XRFfun_diags_cleaned()
+    clean_choices <- cleaned %>% filter(CoreID %in% req(input$plotting_choose_Xc1e)) %>% select(Element) %>% distinct() %>% .[[1]]
+    
+    updatePickerInput(
+      session,
+      "plotting_chooseproxies",
+      choices = unique(clean_choices)
+    )
+  })
+  
+  observeEvent(input$plotting_chooseproxies, {
+    plotting_proxies$proxylist <- req(input$plotting_chooseproxies)
+  })
+  
+  observeEvent(input$plotting_removetraces, {
+    additionaltraces <- NULL
+  })
+  
+  observeEvent(XRFfun_plotting_compute(), {
+    computed <- XRFfun_plotting_compute()
+    
+    ## filter out elements that have been excluded previously for 1 or more cores -> common elements only
+    
+    updatePickerInput(
+      session,
+      "plotting_choosetraces",
+      choices = unique(computed$Varname)
+    )
+    
+    updatePickerInput(
+      session,
+      "plotting_choosetrace_Xc1e",
+      choices = unique(computed$Varname)
     )
   })
   
@@ -353,24 +551,24 @@ server <- function(input, output, session) {
   # Outputs on import page
   
   output$sectiontable <- renderDT({
-    ## Creating the sections table on the import page (only viewed if catmode == TRUE)
-    sectionsfun()}, 
+    ## Creating the sections table on the import page (only viewed if import_catmode == TRUE)
+    XRFfun_makelongcore()}, 
     options = list(paging = FALSE, searching = FALSE))
   
   output$catplot <- renderPlot({
-    catpreview <- XRFdf_norep() %>%
-      filter(Element == req(input$catpreview_element))
+    catpreview <- XRFfun_rmrepeats() %>%
+      filter(Element == req(input$import_catpreview_element))
     ggplot(catpreview, aes(x = z, y = cps)) + geom_line(aes(colour = factor(SectionID))) + xlab("Depth [mm]") + scale_y_continuous("counts per second (cps)", limits = c(NA, NA)) + labs(color = "Section ID")
   })
   
   # Outputs on diagnostics page
   
-  output$coreid_text <- renderText({
+  output$diagnostics_coreid_text <- renderText({
     ## Printing the chosen CoreID on the diagnostics page in the second column at the bottom.
-    input$core_id
+    input$diagnostics_core_id
   })
   
-  output$excltable <- renderDT({
+  output$diagnostics_excltable <- renderDT({
     ## Printing a table showing deselected measurements and elements on the diagnostics page.
     df_elem <-
       map_dfr(req(excludeddata$exclelem), ~ enframe(., name = NULL), .id = "CoreID") %>%
@@ -386,12 +584,12 @@ server <- function(input, output, session) {
     options = list(paging = FALSE, searching = FALSE),
     rownames = FALSE)
   
-  output$diagnosticsplot <- renderPlot({
+  output$diagnostics_diagnosticsplot <- renderPlot({
     ## Diagnostic plots: Three different modes
-    excldepths <- excludeddata$excldepth[[input$core_id]]
+    excldepths <- excludeddata$excldepth[[input$diagnostics_core_id]]
     
-    if (input$diagmode == "relstdevdiag") {
-      XRF_relstdev <- XRFdf_coreid()
+    if (input$diagnostics_diagmode == "relstdevdiag") {
+      XRF_relstdev <- XRFfun_diags_coreid()
       
       XRF_relstdev_cutoff <- XRF_relstdev %>%
         group_by(CoreID, Element) %>%
@@ -399,13 +597,13 @@ server <- function(input, output, session) {
         left_join(XRF_relstdev, by = c("CoreID", "Element")) %>%
         mutate(
           keepmedquorum = ifelse(
-            keepmedquorum <= req(input$medrelstdev),
+            keepmedquorum <= req(input$diagnostics_medrelstdev),
             "Below",
             "Exceeded"
           ),
           keepmedquorum = as.factor(keepmedquorum)
         ) %>%
-        filter(Element %in% req(elementsdiag_debounced()),
+        filter(Element %in% req(diagnostics_elements_excl_debounced()),
                !(Depth %in% excldepths))
       
       p <-
@@ -417,96 +615,44 @@ server <- function(input, output, session) {
           fill = keepmedquorum
         ),
         alpha = 0.5) + geom_line() + scale_y_continuous(expression(paste(sigma[rel], " Percentage std. deviation")),
-                                                        limits = c(input$diags_ymin, input$diags_ymax)) + geom_hline(aes(yintercept = input$maxrelstdev), colour = "red") + facet_wrap(CoreID ~
-                                                                                                                                                                                         Element, scales = "free") + scale_x_continuous("Depth [mm]", limits = input$xlimdiag)
+                                                        limits = c(input$diagnostics_ymin, input$diagnostics_ymax)) + geom_hline(aes(yintercept = input$diagnostics_maxrelstdev), colour = "red") + facet_wrap(CoreID ~
+                                                                                                                                                                                         Element, scales = "free") + scale_x_continuous("Depth [mm]", limits = input$diagnostics_xlims)
     }
     
-    if (input$diagmode == "chisqdiag") {
-      XRF_chisq <- XRFdf_coreid() %>%
-        filter(Element %in% req(elementsdiag_debounced()),
+    if (input$diagnostics_diagmode == "chisqdiag") {
+      XRF_chisq <- XRFfun_diags_coreid() %>%
+        filter(Element %in% req(diagnostics_elements_excl_debounced()),
                !(Depth %in% excldepths))
       p <-
         ggplot(XRF_chisq, aes(x = Depth, y = Chi2)) + geom_line() + scale_y_continuous("goodness of fit",
-                                                                                       limits = c(input$diags_ymin, input$diags_ymax)) + facet_wrap( ~ Element, scales = "free") + geom_hline(aes(yintercept = input$chi2cutoff), colour = "blue") + scale_x_continuous("Depth [mm]", limits = input$xlimdiag)
+                                                                                       limits = c(input$diagnostics_ymin, input$diagnostics_ymax)) + facet_wrap( ~ Element, scales = "free") + geom_hline(aes(yintercept = input$diagnostics_chi2cutoff), colour = "blue") + scale_x_continuous("Depth [mm]", limits = input$diagnostics_xlims)
     }
     
-    if (input$diagmode == "cpsdiag") {
-      XRF_cps <- XRFdf_coreid() %>%
-        filter(Element %in% req(elementsdiag_debounced()),
+    if (input$diagnostics_diagmode == "cpsdiag") {
+      XRF_cps <- XRFfun_diags_coreid() %>%
+        filter(Element %in% req(diagnostics_elements_excl_debounced()),
                !(Depth %in% excldepths))
       p <-
-        ggplot(XRF_cps, aes(x = Depth, y = cps)) + geom_line() + scale_y_continuous("cps", limits = c(input$diags_ymin, input$diags_ymax)) + facet_wrap( ~
-                                                                                                                                                           Element, scales = "free") + scale_x_continuous("Depth [mm]", limits = input$xlimdiag)
+        ggplot(XRF_cps, aes(x = Depth, y = cps)) + geom_line() + scale_y_continuous("cps", limits = c(input$diagnostics_ymin, input$diagnostics_ymax)) + facet_wrap( ~
+                                                                                                                                                           Element, scales = "free") + scale_x_continuous("Depth [mm]", limits = input$diagnostics_xlims)
     }
     p
   })
   
   # Outputs on plotting page
   
-  output$plotUIinputs <- renderUI({
-    
-    ## The following code generates the plot mode dependent input elements
-    req(input$plotting_mode)
-    switch(input$plotting_mode,
-           "1cXe" = {returnList <- tagList(
-             selectizeInput("plotting_choose1c", "2. Choose Core", choices = NULL),
-             pickerInput(
-               inputId = "plotting_chooseproxies",
-               label = "3. Calculate ratios? Choose proxies",
-               choices = NULL,
-               options = list(`actions-box` = TRUE),
-               multiple = TRUE
-             ),
-             fileInput("plotting_addtraces", "4. Upload additional traces (*.csv)", multiple = TRUE, accept = c(
-               "text/csv",
-               "text/comma-separated-values,text/plain",
-               ".csv")
-             ),
-             pickerInput(
-               inputId = "plotting_choosetraces",
-               label = "5. Choose traces to plot",
-               choices = NULL,
-               options = list(`actions-box` = TRUE),
-               multiple = TRUE
-             ),
-             actionButton("plotting_redraw", "Compute & (Re)draw!", class = "btn-primary")
-           )},
-           
-           "Xc1e" = {returnList <- tagList(
-             pickerInput(
-               inputId = "plotting_chooseXc",
-               label = "2. Choose Cores",
-               choices = NULL,
-               options = list(`actions-box` = TRUE),
-               multiple = TRUE
-             ),
-             selectizeInput("plotting_choose1e", "3. Choose Element", choices = NULL)
-           )},
-           
-           "longcore" = {returnList <- tagList(
-             pickerInput(
-               inputId = "plotting_chooseproxies_longcore",
-               label = "2. Calculate ratios? Choose proxies",
-               choices = NULL,
-               options = list(`actions-box` = TRUE),
-               multiple = TRUE
-             ),
-             pickerInput(
-               inputId = "plotting_choosetraces_longcore",
-               label = "3. Choose traces to plot",
-               choices = NULL,
-               options = list(`actions-box` = TRUE),
-               multiple = TRUE
-             ),
-             actionButton("plotting_redraw_longcore", "Compute & (Re)draw!", class = "btn-primary")
-           )}
-           )
-    returnList
+  output$plotting_plotout <- renderPlot({
+    XRFfun_plotting_redraw()
+  })
+  
+  output$plotting_longcorename <- renderText({
+    cleaned <- XRFfun_diags_cleaned()
+    if (any(str_detect(colnames(cleaned), "LongcoreName"))) {
+      print(paste("Longcore name:", unique(cleaned$LongcoreName)))
+    } else
+      return(NULL)
   })
   
   # Outputs on statistics page
-  
-  
-  output$cleandftest <- renderPrint(glimpse(XRFdf_plotting_1cXe()))
   
 }
