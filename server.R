@@ -1,14 +1,3 @@
-library(shiny)
-library(readr)
-library(tidyr)
-library(dplyr)
-library(ggplot2)
-library(stringr)
-library(viridis)
-library(purrr)
-library(tibble)
-library(DT)
-
 source("helper.R")
 
 server <- function(input, output, session) {
@@ -174,7 +163,7 @@ server <- function(input, output, session) {
     tmpxrf
   })
   
-  XRFfun_plotting_compute <- eventReactive(input$plotting_compute, {
+  XRFfun_plotting_compute <- reactive({
     cleaned <- req(XRFfun_diags_cleaned())
     pmode <- req(input$plotting_mode)
     proxies <- plotting_proxies$proxylist
@@ -227,16 +216,16 @@ server <- function(input, output, session) {
                  transmute(Depth = Depth, Varname = paste(.$Element, "cps"), Value = cps)
              }
              
-             if (is_empty(proxies) & !is_empty(additionaltraces$filename)) {
+             if (is_empty(proxies) & !is_empty(additionaltraces$filenames)) {
                xrf_plotting <- XRFdata %>% 
                  transmute(Depth = Depth, Varname = paste(.$Element, "cps"), Value = cps) %>% 
-                 spread(Varname, Value, -Depth) %>% 
+                 spread(Varname, Value) %>% 
                  full_join(traces_plotting, by = "Depth") %>%
                  gather(Varname, Value, -1) %>%
                  drop_na()
              }
              
-             if (!is_empty(proxies) & is_empty(additionaltraces$filename)) {
+             if (!is_empty(proxies) & is_empty(additionaltraces$filenames)) {
                xrf_plotting <- XRFdata %>% 
                  group_modify(~map_dfc(proxies, calcproxy)) %>% 
                  bind_cols(XRFdata, .) %>%
@@ -260,7 +249,7 @@ server <- function(input, output, session) {
            },
            
            "Xc1e" = {
-             cores_Xc <- req(input$plotting_choose_Xc1e)
+             cores_Xc <- req(plotting_choose_Xc1e_debounced())
              XRFdata_Xc1e <- cleaned %>%
                select(CoreID, Depth, Element, cps) %>% 
                filter(CoreID %in% cores_Xc)
@@ -291,24 +280,25 @@ server <- function(input, output, session) {
   XRFfun_plotting_redraw <- eventReactive(input$plotting_redraw, {
     pmode <- req(input$plotting_mode)
     plotdata <- XRFfun_plotting_compute()
+    gg2theme <- req(plotting_gg2theme())
     
     switch(pmode,
            "1cXe" = {
              plotdata_1cXe <- plotdata %>%
                filter(Varname %in% req(input$plotting_choosetraces))
-             p <- ggplot(data = plotdata_1cXe, aes(x = Depth, y = Value)) + facet_grid(.~Varname, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + theme_light() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_line()
+             p <- ggplot(data = plotdata_1cXe, aes(x = Depth, y = Value)) + facet_grid(.~Varname, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + gg2theme + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) + geom_line()
            },
            
            "Xc1e" = {
              plotdata_Xc1e <- plotdata %>%
                filter(Varname %in% req(input$plotting_choosetrace_Xc1e))
-             p <- ggplot(data = plotdata_Xc1e, aes(x = Depth, y = Value)) + facet_grid(Varname~CoreID, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + theme_light() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_line()
+             p <- ggplot(data = plotdata_Xc1e, aes(x = Depth, y = Value)) + facet_grid(Varname~CoreID, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) + geom_line()
            },
            
            "longcore" = {
              plotdata_longcore <- plotdata %>%
                filter(Varname %in% req(input$plotting_choosetraces))
-             p <- ggplot(data = plotdata_longcore, aes(x = z, y = Value, colour = SectionID)) + facet_grid(.~Varname, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + theme_light() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_line()
+             p <- ggplot(data = plotdata_longcore, aes(x = z, y = Value, colour = SectionID)) + facet_grid(.~Varname, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) + geom_line() + scale_color_viridis()
            })
     
     p
@@ -333,7 +323,23 @@ server <- function(input, output, session) {
   
   diagnostics_elements_excl_debounced <- debounce(diagnostics_elements_excl, 1000)
   
+  plotting_choose_Xc1e <- reactive({
+    input$plotting_choose_Xc1e
+  })
+  
+  plotting_choose_Xc1e_debounced <- debounce(plotting_choose_Xc1e, 1000)
+  
+  plotting_chooseproxies <- reactive({
+    input$plotting_chooseproxies
+  })
+  
+  plotting_chooseproxies_debounced <- debounce(plotting_chooseproxies, 1000)
+  
   plotting_proxies <- reactiveValues()
+  
+  plotting_gg2theme <- reactive({
+    gg2themes[[input$plotting_theme]]
+  })
   
   ## empty reactiveValue to hold filenames and data of additional traces
   # additionaltraces <- reactiveValues()
@@ -415,6 +421,7 @@ server <- function(input, output, session) {
     excludeddata$excldepth[[input$diagnostics_core_id]] <- NULL
   })
   
+  
   # Observers for plotting page
   
   observeEvent(XRFfun_diags_cleaned(), {
@@ -461,7 +468,6 @@ server <- function(input, output, session) {
            "1cXe" = {
              shinyjs::show(id = "plotting_choose_1cXe")
              shinyjs::show(id = "plotting_addtraces")
-             shinyjs::show(id = "plotting_removetraces")
              shinyjs::show(id = "plotting_choosetraces")
              
              shinyjs::hide(id = "plotting_choose_Xc1e")
@@ -475,7 +481,6 @@ server <- function(input, output, session) {
              
              shinyjs::hide(id = "plotting_choose_1cXe")
              shinyjs::hide(id = "plotting_addtraces")
-             shinyjs::hide(id = "plotting_removetraces")
              shinyjs::hide(id = "plotting_longcorename")
              shinyjs::hide(id = "plotting_choosetraces")
            },
@@ -487,7 +492,6 @@ server <- function(input, output, session) {
              shinyjs::hide(id = "plotting_choose_1cXe")
              shinyjs::hide(id = "plotting_choose_Xc1e")
              shinyjs::hide(id = "plotting_addtraces")
-             shinyjs::hide(id = "plotting_removetraces")
              shinyjs::hide(id = "plotting_choosetrace_Xc1e")
            })
   })
@@ -503,9 +507,9 @@ server <- function(input, output, session) {
     )
   })
   
-  observeEvent(input$plotting_choose_Xc1e, {
+  observeEvent(plotting_choose_Xc1e_debounced(), {
     cleaned <- XRFfun_diags_cleaned()
-    clean_choices <- cleaned %>% filter(CoreID %in% req(input$plotting_choose_Xc1e)) %>% select(Element) %>% distinct() %>% .[[1]]
+    clean_choices <- cleaned %>% filter(CoreID %in% req(plotting_choose_Xc1e_debounced())) %>% select(Element) %>% distinct() %>% .[[1]]
     
     updatePickerInput(
       session,
@@ -514,12 +518,8 @@ server <- function(input, output, session) {
     )
   })
   
-  observeEvent(input$plotting_chooseproxies, {
-    plotting_proxies$proxylist <- req(input$plotting_chooseproxies)
-  })
-  
-  observeEvent(input$plotting_removetraces, {
-    additionaltraces <- NULL
+  observeEvent(plotting_chooseproxies_debounced(), {
+    plotting_proxies$proxylist <- req(plotting_chooseproxies_debounced())
   })
   
   observeEvent(XRFfun_plotting_compute(), {
@@ -541,10 +541,6 @@ server <- function(input, output, session) {
   })
   
   # Observers for export page
-  
-  observeEvent(input$triggerbrowser, {
-    browser()
-  })
 
 # Output code -------------------------------------------------------------
   
@@ -639,9 +635,30 @@ server <- function(input, output, session) {
     p
   })
   
+  output$diagnostics_saveplot <- downloadHandler(
+    filename = function() {
+      "XRF_diagnostics.pdf"
+    },
+    content = function(file) {
+      ggsave(file, width = 12, height = 10, device = "pdf")
+    },
+    contentType = "application/pdf"
+  )
+  
+  output$plotting_saveplot <- downloadHandler(
+    filename = function() {
+      "XRF_plotting.pdf"
+    },
+    content = function(file) {
+      ggsave(file, width = 12, height = 10, device = "pdf")
+    },
+    contentType = "application/pdf"
+  )
+  
   # Outputs on plotting page
   
   output$plotting_plotout <- renderPlot({
+    ## error handling here needed
     XRFfun_plotting_redraw()
   })
   

@@ -1,20 +1,11 @@
-library(shiny)
-library(shinyjqui)
-library(shinyjs)
-library(reactlog)
-library(shinyalert)
-library(DT)
-library(shinyWidgets)
-library(shinycssloaders)
-
 options(shiny.reactlog = TRUE)
 
 ui <- navbarPage(
   "shinyCoreScan",
-  
   ## Import page ####
   tabPanel(
     "Data import",
+    shiny.info::display("0.9"),
     useShinyjs(),
     useShinyalert(),
     sidebarLayout(
@@ -126,7 +117,6 @@ ui <- navbarPage(
           options = list(`actions-box` = TRUE),
           multiple = TRUE
         ),
-        
         hr(),
         p(strong("Exclude depths")),
         HTML(
@@ -138,13 +128,13 @@ ui <- navbarPage(
             )
           )
         ),
-        br(),
-        br(),
+        p(),
         actionButton("diagnostics_exclude_rmpoints", "Remove points", class = "btn-warning"),
-        br(),
-        br(),
+        p(),
         actionButton("diagnostics_exclude_reset", "Reset current core", class = "btn-danger"),
-        br()
+        hr(),
+        downloadButton("diagnostics_saveplot", "Download diagnostics plot"),
+        p()
       ),
       column(6,
              h4(HTML(
@@ -158,8 +148,9 @@ ui <- navbarPage(
            selectizeInput(
              inputId = "plotting_mode",
              label = "Select plot mode",
-             choices = c("Upload data first"),
-             multiple = FALSE
+             options = list(placeholder = "Upload data first"),
+             multiple = FALSE,
+             choices = character(0)
            ),
             plotOutput(
                "plotting_plotout",
@@ -173,8 +164,14 @@ ui <- navbarPage(
            fluidRow(
              column(
                3,
+               h4("Compute traces"),
                selectizeInput("plotting_choose_1cXe", "Choose Core", choices = NULL), # only shown for 1cXe mode
-               pickerInput("plotting_choose_Xc1e", "Choose multiple cores", choices = NULL, multiple = TRUE), # only shown for Xc1e mode
+               pickerInput(
+                 inputId = "plotting_choose_Xc1e", 
+                 label = "Choose multiple cores", 
+                 choices = NULL, 
+                 multiple = TRUE,
+                 options = list(`actions-box` = TRUE)), # only shown for Xc1e mode
                textOutput("plotting_longcorename"), # only shown for longcore mode
                pickerInput(
                  inputId = "plotting_chooseproxies",
@@ -188,10 +185,6 @@ ui <- navbarPage(
                  "text/comma-separated-values,text/plain",
                  ".csv")
                ), # only shown for 1cXe mode
-               actionButton("plotting_removetraces", "Remove additional traces", class = "btn-danger"), # only shown for 1cXe mode
-               p(),
-               actionButton("plotting_compute", "Compute traces", class = "btn-primary"),
-               p(),
                pickerInput(
                  inputId = "plotting_choosetraces",
                  label = "Choose traces to plot",
@@ -206,14 +199,24 @@ ui <- navbarPage(
                  options = list(`actions-box` = TRUE, `live-search` = TRUE),
                  multiple = FALSE
                ), # shown for Xc1e mode
-               actionButton("plotting_redraw", "(Re)draw!", class = "btn-primary"), # always shown
+               p()
+             ),
+             column(
+               3,
+               h4("Plot options"),
+               selectizeInput(
+                 inputId = "plotting_theme", 
+                 label = "Choose plot theme", 
+                 choices = names(gg2themes)
+               ),
+               actionButton("plotting_redraw", "(Re)draw plot", class = "btn-primary"), # always shown
+               downloadButton("plotting_saveplot", "Download plot"),
                p()
              )
-           )),
+           ))#,
   ## Statistics page ####
-  tabPanel("Statistics", ),
+  #tabPanel("Statistics", ),
   
   ## Export page ####
-  tabPanel("Export",
-           actionButton("triggerbrowser", "Trigger browser( )"))
+  #tabPanel("Export", )
 )
