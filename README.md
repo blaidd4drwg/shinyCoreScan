@@ -14,7 +14,7 @@ You can either run a local copy of shinyCoreScan using a [point release](https:/
 
 For a local deployment of the WebApp you will need a recent [GNU R installation](https://www.r-project.org/) and for your own convenience [RStudio](https://rstudio.com/). Additionally, shinyCoreScan requires the following packages to be installed (listed in `global.R`):
 
-```
+```r
 library(shiny)
 library(shinyjqui)
 library(shinyjs)
@@ -124,4 +124,3 @@ The plotting page currently offers three different ways/modes (top left switch) 
 The controls below the plot area allow the computing of proxies/element ratios and the upload of additional traces. The computed traces can then be selected and a redraw of the plot can be triggered by pushing `(Re)draw plot`. Moreover, the plot theme can be changed and the active plot can be downloaded.
 
 ![Plotting page - Controls](README_files/shinyCoreScan_plotting_controls.png)
-
