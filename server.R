@@ -2,7 +2,7 @@ source("helper.R")
 
 server <- function(input, output, session) {
   
-  # Reactive functions ------------------------------------------------------
+# Reactive functions ------------------------------------------------------
   
   # XRF data related functions in order of dependency
   
@@ -26,6 +26,7 @@ server <- function(input, output, session) {
                      ) %>%
                      bind_rows()
                  })
+
     xrftbl <- tmp %>%
       group_by(Element, Voltage) %>%
       summarise(totalcounts = sum(Area)) %>%
@@ -69,16 +70,9 @@ server <- function(input, output, session) {
           LongcoreName = str_extract(CoreID, ".+(?=\\W[[:alpha:]]+)")
         )
       
-      if (any(is.na(sectdf$LongcoreName))) {
-        shinyalert(
-          "Multiple cores",
-          HTML(
-            "Multiple longcore names were found but you chose to use concatenate mode. Make sure to use the same name and latin letters for sections at the end. <br> E.g: XYZ19-8-A or WXYZ-HIJ1-E"
-          ),
-          type = "error",
-          html = TRUE
-        )
-      }
+      validate(
+        need(!(any(is.na(sectdf$LongcoreName))), message = "Multiple longcore names were found but you chose to use concatenate mode. Make sure to use the same name and latin letters for sections at the end. E.g: XYZ19-8-A or WXYZ-HIJ1-E")
+      )
       
       if (input$import_descorder) {
         sectdf <- sectdf %>%
@@ -202,13 +196,22 @@ server <- function(input, output, session) {
              if (!is_empty(input$plotting_addtraces)) {
                additionaltraces$filenames <- input$plotting_addtraces$name
                
+               additionaltraces$tracesdata <-
+                 map(input$plotting_addtraces$datapath,
+                     ~ (read_delim(.x, delim = ";")))
+
                validate(
-                 need({
-                   additionaltraces$tracesdata <- try(map(input$plotting_addtraces$datapath, ~(read_delim(.x, delim = ";") %>% rename(Depth = 1))))
-                   traces_plotting <- try(reduce(additionaltraces$tracesdata, full_join, by = "Depth") %>%
-                                            mutate(Depth = 10*Depth))
-                 }, "Error occured during parsing and joining additional traces. Check format of input files.")
+                 need(
+                   all(map_lgl(additionaltraces$tracesdata, ~ (colnames(.x)[1] == "Depth"))), 
+                   message = "Depth not found. Please check the format of the csv file."
+                   )
                )
+               
+               traces_plotting <-
+                 reduce(additionaltraces$tracesdata, full_join, by = "Depth") %>%
+                 mutate(Depth = 10 * Depth)
+               
+               browser()
              }
              
              if (is_empty(proxies) & is_empty(additionaltraces$filenames)) {
@@ -552,9 +555,11 @@ server <- function(input, output, session) {
     options = list(paging = FALSE, searching = FALSE))
   
   output$catplot <- renderPlot({
-    catpreview <- XRFfun_rmrepeats() %>%
-      filter(Element == req(input$import_catpreview_element))
-    ggplot(catpreview, aes(x = z, y = cps)) + geom_line(aes(colour = factor(SectionID))) + xlab("Depth [mm]") + scale_y_continuous("counts per second (cps)", limits = c(NA, NA)) + labs(color = "Section ID")
+    if (input$import_catmode) {
+      catpreview <- XRFfun_rmrepeats() %>%
+        filter(Element == req(input$import_catpreview_element))
+      ggplot(catpreview, aes(x = z, y = cps)) + geom_line(aes(colour = factor(SectionID))) + xlab("Depth [mm]") + scale_y_continuous("counts per second (cps)", limits = c(NA, NA)) + labs(color = "Section ID")
+    }
   })
   
   # Outputs on diagnostics page

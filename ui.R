@@ -29,7 +29,7 @@ ui <- navbarPage(
       ),
       
       mainPanel(
-        conditionalPanel("input.import_catmode == 1", plotOutput("catplot")),
+        plotOutput("catplot"),
         DTOutput("sectiontable")
       )
     )

@@ -1,8 +1,11 @@
 makeTidyData <- function(tmppath, counter, n) {
   tmp <- read_csv(tmppath, quote = "") %>%
     distinct()
-  if (!str_detect((names(tmp)[1]), "Spectrum"))
-    stop("No valid Avaatech XRF baxil batch file (csv)")
+
+  validate(
+    need(str_detect((names(tmp)[1]), "Spectrum"), message = "No valid Avaatech XRF baxil batch file (csv)")
+  )
+  
   names(tmp) <- names(tmp) %>%
     str_replace_all('\\"', "") %>%
     str_trim()
