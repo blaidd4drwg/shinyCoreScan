@@ -1,5 +1,7 @@
 # shinyCoreScan
 
+*This manual applies to shinyCoreScan v0.9-beta.*
+
 shinyCoreScan is a WebApp written in R using the Shiny framework that processes Avaatech XRF Corescanner files (bAXIL batch csv files) and allows the inspection, cleaning, and plotting of XRF data.
 
 ## Getting Started
@@ -39,7 +41,7 @@ shinyCoreScan is divided in different tabpanels: Import, Diagnostics, Plotting e
 
 The import page allows the user to import their XRF Corescanner files (bAXIL batch csv files). Make sure that every file only contains data of one core (or core section). In case the import fails check if there are duplicate spectrum files (spe files created by bAXIL scanning software).
 
-![Import page of shinyCoreScan initially](README_files/shinyCoreScan_import_init.png)
+![Import page initially](README_files/shinyCoreScan_import_init.png)
 
 During import, the data of the input files is being reshaped and cleaned:
 
@@ -57,3 +59,44 @@ Import and processing of the XRF files may take a minute. After the import is fi
 This means, that The name of the long core (e.g. MI18-L8) needs to be followed by a non-word (e.g dash or underline) and then followed by the section at the end, which has to be a letter. E.g. MI18-L8-A ... MI18-L8-E would be valid names of a longcore.
 
 If `concatenate core sections` is chosen with either ascending or descending order of sections, an Element can be chosen in the import panel to preview the spectrum over the whole longcore length `z`. A table shows information about the length of each section, their `SectionID`, the name of the longcore and the absolute, cumulative length/depth `z`. Choosing this mode is necessary to plot longcores on the Plotting page.
+
+![Import page for concatenated longcore](README_files/shinyCoreScan_import_longcore.png)
+
+### Diagnostics page
+
+The diagnostics page is used to inspect the XRF data and to clean it, i.e. remove spurious data.
+
+![Diagnostics page - spectra](README_files/shinyCoreScan_diagnostics_spectra.png)
+
+The diagnostics are done for every core (or core section) individually, the `CoreID` can be changed in the upper left part of the page. Changes done to the data are automatically applied and saved.
+
+Below the plot output, there are different inputs that control the plot and data.
+
+![Diagnostics page - controls](README_files/shinyCoreScan_diagnostics_controls.png)
+
+1. First column: Plot options 
+
+* The `diagnostics mode` control offers three different modes.
+
+  * `Element spectra (cps)`: Shows all available elements with their respective specta using cps (counts per second). Useful to get a first overview of the data.
+  * `Relative standard deviation`: Shows the computed relative standard deviation in percent (relative to cps). This is particularly useful to see elements with high noise (relative standard deviation high in whole spectrum) and to detect outliers (either only for specific elements or in all elements).
+  * `Goodness of fit`: Shows the goodness of the fit (Chi square value) that was reached when the XRF model was fitted to the spectrum. Lower is better, ideally below 5-10. High values/noise suggest a problem with peak deconvolution (e.g. overlapping XRF absorption lines), sharp peaks suggest problems with a measurement or gaps in the surface of the core.
+
+* `Y min` and `Y max` can be used to change the range of the Y axis for each plot facet.
+*  `X limits` does the same for the X axis.
+*  `|σ rel| median spectrum threshold` allows to mark all elements that have an absolute relative standard deviation with a median (over the whole spectrum) above the given value. A good way to see all noisy elements at once.
+*  `σ rel horizontal line` can be used to draw a line in the relative standard deviation plot to see high values more clearly.
+*  `χ2 horizontal line` can be used to draw a line in the goodness of fit plot to see high values more clearly.
+
+2. Second column: Cleaning/excluding data
+
+* `Include/Exclude elements` allows to exclude elements that have noisy spectra or are not of concern. You should generally exclude elements with spectra that are not trustworthy (e.g. poor goodness of fit and high errors).
+* To exclude depths, you can draw a rectangle around points to exclude with the crosshair cursor (+) and then press the button `Remove points`. Excluded depths are removed for every element of a core (section)!
+* To include **all** previously excluded depths, i.e. to reset the settings, use `Reset current core`.
+
+**Warning**: If you switch from one core (section) to another one, the excluded depths and elements will be reset, if they already exist. It is thus a good idea to process the core sections in order.
+
+![Diagnostics page - excluded elements](README_files/shinyCoreScan_diagnostics_excluded.png)
+*Screenshot showing data cleaning for core MI18-L8-A. The elements Ar, Hg and U were excluded and an outlier in the spectrum of Y was marked with a box, ready to be removed.* 
+
+Once you are done with data inspection and cleaning, you can proceed to the next pages of shinyCoreScan.
