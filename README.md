@@ -1,7 +1,11 @@
 # shinyCoreScan
 
+<<<<<<< HEAD
 *This README applies to the newest shinyCoreScan release, which is as of now v0.9-beta. Older versions can be found in the Wiki*
 *
+=======
+*This manual applies to shinyCoreScan v0.9-beta.*
+>>>>>>> 077f88f7912fb8521324280845b52614363d57c2
 
 shinyCoreScan is a WebApp written in R using the Shiny framework that processes Avaatech XRF Corescanner files (bAXIL batch csv files) and allows the inspection, cleaning, and plotting of XRF data.
 
