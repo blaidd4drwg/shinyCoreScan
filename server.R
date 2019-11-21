@@ -211,7 +211,6 @@ server <- function(input, output, session) {
                  reduce(additionaltraces$tracesdata, full_join, by = "Depth") %>%
                  mutate(Depth = 10 * Depth)
                
-               browser()
              }
              
              if (is_empty(proxies) & is_empty(additionaltraces$filenames)) {
@@ -295,13 +294,13 @@ server <- function(input, output, session) {
            "Xc1e" = {
              plotdata_Xc1e <- plotdata %>%
                filter(Varname %in% req(input$plotting_choosetrace_Xc1e))
-             p <- ggplot(data = plotdata_Xc1e, aes(x = Depth, y = Value)) + facet_grid(Varname~CoreID, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) + geom_line()
+             p <- ggplot(data = plotdata_Xc1e, aes(x = Depth, y = Value)) + facet_grid(Varname~CoreID, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + gg2theme + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) + geom_line()
            },
            
            "longcore" = {
              plotdata_longcore <- plotdata %>%
                filter(Varname %in% req(input$plotting_choosetraces))
-             p <- ggplot(data = plotdata_longcore, aes(x = z, y = Value, colour = SectionID)) + facet_grid(.~Varname, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) + geom_line() + scale_color_viridis()
+             p <- ggplot(data = plotdata_longcore, aes(x = z, y = Value, colour = SectionID)) + facet_grid(.~Varname, scales = "free_x") + scale_x_reverse("Depth [mm]") + scale_y_continuous("") + coord_flip() + gg2theme + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) + geom_line() + scale_color_viridis(discrete=TRUE)
            })
     
     p
