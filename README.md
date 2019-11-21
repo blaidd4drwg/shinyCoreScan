@@ -93,7 +93,7 @@ Below the plot output, there are different inputs that control the plot and data
 2. Second column: Cleaning/excluding data
 
 * `Include/Exclude elements` allows to exclude elements that have noisy spectra or are not of concern. You should generally exclude elements with spectra that are not trustworthy (e.g. poor goodness of fit and high errors).
-* To exclude depths, you can draw a rectangle around points to exclude with the crosshair cursor (+) and then press the button `Remove points`. Excluded depths are removed for every element of a core (section)!
+* To exclude depths, you can draw a rectangle around points to exclude with the crosshair cursor (+) and then press the button `Remove points`. Excluded depths are removed for every element of a core (section)!
 * To include **all** previously excluded depths, i.e. to reset the settings, use `Reset current core`.
 
 **Warning**: If you switch from one core (section) to another one, the excluded depths and elements will be reset, if they already exist. It is thus a good idea to process the core sections in order.
@@ -102,3 +102,26 @@ Below the plot output, there are different inputs that control the plot and data
 *Screenshot showing data cleaning for core MI18-L8-A. The elements Ar, Hg and U were excluded and an outlier in the spectrum of Y was marked with a box, ready to be removed.*
 
 Once you are done with data inspection and cleaning, you can proceed to the next pages of shinyCoreScan.
+
+### Plotting page
+
+The plotting page currently offers three different ways/modes (top left switch) to compute and plot corescanner data:
+
+* `1 Core (Section) - X Elements` is the default mode and allows to calculate element proxies and also to add additional traces (measurements such as ICP-OES, water content, TC/TIC/TOC content et cetera.) to plot together for one core (or core section).
+
+![Plotting page - 1 Core (Section) - X Elements mode](README_files/shinyCoreScan_plotting_1cXe.png)
+
+> Requirements for additional traces: The input files have to be valid csv files that are separated by semicolon (;) - this is the default setting for csv files exported from Microsoft Excel. The first column needs to be called "Depth" and contain the sample depths in cm. The column headers of further columns are interpreted as variables (see Screenshot above).
+
+* `X Cores (Sections) - 1 Element` is an alternative mode that allows the comparison of different cores or sections for one element (or element ratio). In this mode, no additional traces can be added.
+
+![Plotting page - X Cores (Sections) - 1 Element](README_files/shinyCoreScan_plotting_Xc1e.png)
+
+* `Longcore` is an option that is only shown if the core is a valid longcore and `concatenate core sections` has been enabled on the import page. In this mode, different elements (and element ratios) can be plotted for the whole core. The sections of the longcore are marked with different colours.
+
+![Plotting page - Longcore](README_files/shinyCoreScan_plotting_longcore.png)
+
+The controls below the plot area allow the computing of proxies/element ratios and the upload of additional traces. The computed traces can then be selected and a redraw of the plot can be triggered by pushing `(Re)draw plot`. Moreover, the plot theme can be changed and the active plot can be downloaded.
+
+![Plotting page - Controls](README_files/shinyCoreScan_plotting_controls.png)
+
