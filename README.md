@@ -1,11 +1,8 @@
 # shinyCoreScan
 
-<<<<<<< HEAD
-*This README applies to the newest shinyCoreScan release, which is as of now v0.9-beta. Older versions can be found in the Wiki*
-*
-=======
-*This manual applies to shinyCoreScan v0.9-beta.*
->>>>>>> 077f88f7912fb8521324280845b52614363d57c2
+*This README applies to the newest shinyCoreScan release, which is as of now v0.9-beta. Older versions can be found in the [Wiki](https://github.com/blaidd4drwg/shinyCoreScan/wiki)*
+
+*Die deutschsprachige Bedienungsanleitung befindet sich im [Wiki](https://github.com/blaidd4drwg/shinyCoreScan/wiki).*
 
 shinyCoreScan is a WebApp written in R using the Shiny framework that processes Avaatech XRF Corescanner files (bAXIL batch csv files) and allows the inspection, cleaning, and plotting of XRF data.
 
@@ -79,7 +76,7 @@ Below the plot output, there are different inputs that control the plot and data
 
 ![Diagnostics page - controls](README_files/shinyCoreScan_diagnostics_controls.png)
 
-1. First column: Plot options 
+1. First column: Plot options
 
 * The `diagnostics mode` control offers three different modes.
 
@@ -102,6 +99,6 @@ Below the plot output, there are different inputs that control the plot and data
 **Warning**: If you switch from one core (section) to another one, the excluded depths and elements will be reset, if they already exist. It is thus a good idea to process the core sections in order.
 
 ![Diagnostics page - excluded elements](README_files/shinyCoreScan_diagnostics_excluded.png)
-*Screenshot showing data cleaning for core MI18-L8-A. The elements Ar, Hg and U were excluded and an outlier in the spectrum of Y was marked with a box, ready to be removed.* 
+*Screenshot showing data cleaning for core MI18-L8-A. The elements Ar, Hg and U were excluded and an outlier in the spectrum of Y was marked with a box, ready to be removed.*
 
 Once you are done with data inspection and cleaning, you can proceed to the next pages of shinyCoreScan.
