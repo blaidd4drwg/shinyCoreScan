@@ -1,6 +1,6 @@
 # shinyCoreScan
 
-*This README applies to the newest shinyCoreScan release, which is as of now v0.9-beta. Older versions can be found in the [Wiki](https://github.com/blaidd4drwg/shinyCoreScan/wiki)*
+*This README applies to the newest shinyCoreScan release, which is as of now v0.9-beta.2. Older versions can be found in the [Wiki](https://github.com/blaidd4drwg/shinyCoreScan/wiki)*
 
 *Die deutschsprachige Bedienungsanleitung befindet sich im [Wiki](https://github.com/blaidd4drwg/shinyCoreScan/wiki).*
 
