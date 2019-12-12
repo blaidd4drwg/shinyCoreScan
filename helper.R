@@ -54,7 +54,7 @@ makeTidyData <- function(tmppath, counter, n) {
     ) %>%
     mutate(Depth = Depth - min(Depth) + 1) %>%
     gather(-(CoreID:Throughput), key = "Measure", value = "Value") %>%
-    filter(!str_detect(Measure, "Rh")) %>%
+    filter(!str_detect(Measure, "Coh"),!str_detect(Measure, "Inc")) %>%
     separate(Measure,
              sep = "[\\W]+",
              into = c("Element", "AbsLine", "Stat")) %>%

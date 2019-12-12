@@ -29,9 +29,9 @@ server <- function(input, output, session) {
 
     xrftbl <- tmp %>%
       group_by(Element, Voltage) %>%
-      summarise(totalcounts = sum(Area)) %>%
-      arrange(Element, desc(totalcounts)) %>%
-      top_n(1, totalcounts) %>%
+      summarise(totalchi2 = sum(Chi2)) %>%
+      arrange(Element, totalchi2) %>%
+      top_n(1, totalchi2) %>%
       select(Element, Voltage) %>%
       left_join(tmp, by = c("Element", "Voltage")) %>%
       select(
