@@ -5,7 +5,7 @@ ui <- navbarPage(
   ## Import page ####
   tabPanel(
     "Data import",
-    shiny.info::display("v0.9-beta.2"),
+    shiny.info::display("v0.9-beta.3"),
     useShinyjs(),
     useShinyalert(),
     sidebarLayout(

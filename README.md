@@ -8,7 +8,7 @@ shinyCoreScan is a WebApp written in R using the Shiny framework that processes 
 
 ## Getting Started
 
-You can either run a local copy of shinyCoreScan using a [point release](https://github.com/blaidd4drwg/shinyCoreScan/releases) from the github project website or use the already deployed WebApp on [shinyapps.io](https://surfsedi.shinyapps.io/shinycorescan/). The two version are not necessarily at the same stage.
+You can either run a local copy of shinyCoreScan using a [point release](https://github.com/blaidd4drwg/shinyCoreScan/releases) from the github project website or use the already deployed WebApp on [shinyapps.io](https://surfsedi.shinyapps.io/shinycorescan/). The two version are not necessarily at the same stage. The code consists of a `ui.R` file that contains the elements for the graphical interface, `server.ui` which contains computational and reactive code. `global.R` contains code that is shared between the server portion of shiny and the UI and `helper.R` contains non-reactive helper functions. 
 
 ### Prerequisites for local deployment
 
@@ -34,6 +34,17 @@ library(purrr)
 library(tibble)
 library(DT)
 ```
+
+### Running shinyCoreScan locally
+
+To run shinyCoreScan locally, you will ideally need a recent installation of R and RStudio. If you open `server.R`, you should see a "▶︎ Run App" command.
+
+![RStudio - Run shinyCoreScan locally](README_files/shinyCoreScan_setup_rstudio.png)
+
+Alternatively, you can start the app from the command line. To this end, open a terminal, navigate to the directory containing the R-code files and enter `R`. In the interactive R shell, use `shiny::runApp()` to run the web app.
+
+![R console - Run shinyCoreScan locally](README_files/shinyCoreScan_setup_shell.png)
+
 
 ## Using shinyCoreScan
 
