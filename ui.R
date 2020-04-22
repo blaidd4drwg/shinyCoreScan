@@ -11,6 +11,13 @@ ui <- navbarPage(
     sidebarLayout(
       sidebarPanel(
         h4("Data import"),
+        radioButtons("import_choosesource", 
+                     "Choose data source",
+                     choices = list(
+                       "Sample Data" = "sampledata",
+                       "File Upload" = "fileupload"
+                     ),
+                     selected = "sampledata"),
         fileInput(
           "import_xrffiles",
           "Upload bAXIL batch files (*.csv)",
@@ -19,6 +26,7 @@ ui <- navbarPage(
                      ".csv"),
           multiple = TRUE
         ),
+        actionButton("import_loaddata", "Load & Parse XRF data"),
         hr(),
         checkboxInput("import_catmode", "Concatenate core sections"),
         checkboxInput("import_descorder", "Sort sections in descending order", value = TRUE),
