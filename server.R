@@ -6,23 +6,38 @@ server <- function(input, output, session) {
   
   # XRF data related functions in order of dependency
   
+  XRFfun_loaddata <- eventReactive(input$import_loaddata, {
+    datasource <- req(input$import_choosesource)
+    switch(datasource,
+      "sampledata" = {
+        fpath <- req(dir(path = "./sampledata", pattern = ".+\\.csv", full.names = TRUE))
+      },
+      "fileupload" = {
+        fpath <- req(input$import_xrffiles)
+        fpath <- fpath$datapath
+      }
+    )
+    fpath
+  })
+  
   XRFfun_tidydata <- reactive({
     # XRFfun_tidydata()
     
     ## uses the file input(s) and runs makeTidyData from helper.R for every file. The function then checks for duplicate elements and removes the Element/Voltage combo with lower overall counts
     
     ## About makeTidyData(): The function removes Rh traces, as these are contained twofold (Rh-Coh, Rh-Inc) and these would lead to ambiguity if a we select by Element. The function also assumes that the first Depth of the core is starting with an offset (usually around 45-50 mm for the green stuff in short cores). However, in long core sections, we don't have an offset (but there is no easy way to tell if we do). Thus, we set Depth(i) = Depth(i) - min(Depth) + 1 (effectively zeroeing any first measurement and then adding 1). Because of this, the depths might be shifted by 1 mm. This is in most cases not relevant as it is consistent for every core processed here.
-    files <- req(input$import_xrffiles)
+    files <- req(XRFfun_loaddata())
+    print(files)
     withProgress(message = 'Processing XRF files',
                  detail = 'This may take a while...',
                  value = 0,
                  {
                    tmp <-
                      map2(
-                       files$datapath,
-                       1:length(files$datapath),
+                       files,
+                       1:length(files),
                        makeTidyData,
-                       length(files$datapath)
+                       length(files)
                      ) %>%
                      bind_rows()
                  })
@@ -350,6 +365,14 @@ server <- function(input, output, session) {
   
   # Observers for import page
   
+  observeEvent(input$import_choosesource, {
+    if (input$import_choosesource == "sampledata") {
+      disable("import_xrffiles")
+    } else {
+      enable("import_xrffiles")
+    }
+})
+  
   observeEvent(input$import_catmode, {
     ## Here we initialise selectize input on the import page for the preview element when import_catmode == TRUE.
     updateSelectizeInput(
@@ -365,6 +388,7 @@ server <- function(input, output, session) {
     toggleState("import_descorder")
     toggleState("import_catpreview_element")
   })
+
   
   # Observers for diagnostics page
   
