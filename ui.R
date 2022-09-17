@@ -7,7 +7,6 @@ ui <- navbarPage(
     "Data import",
     shiny.info::display("v0.9-beta.2"),
     useShinyjs(),
-    useShinyalert(),
     sidebarLayout(
       sidebarPanel(
         h4("Data import"),

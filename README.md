@@ -1,6 +1,6 @@
 # shinyCoreScan
 
-*This README applies to the newest shinyCoreScan release, which is as of now v0.9-beta.2. Older versions can be found in the [Wiki](https://github.com/blaidd4drwg/shinyCoreScan/wiki)*
+*shinyCoreScan is no longer developed in this repository but moved to the [carrrotter](https://github.com/blaidd4drwg/carrrotter) package, which provides also a function to read Avaatech bAXIL export files (e.g. in scripts).*
 
 *Die deutschsprachige Bedienungsanleitung befindet sich im [Wiki](https://github.com/blaidd4drwg/shinyCoreScan/wiki).*
 
